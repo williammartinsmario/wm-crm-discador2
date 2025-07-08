@@ -1,0 +1,290 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WM CRM – Kanban + Agendamento</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Poppins',sans-serif;background:#f4f6f9;color:#333}
+header{display:flex;align-items:center;gap:10px;padding:12px 20px;background:#fff;border-bottom:2px solid #e5e7eb}
+header img{height:42px}
+header h1{font-size:20px;color:#003366;font-weight:600;margin:0}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;transition:.2s}
+.btn:hover{opacity:.9;transform:translateY(-1px)}
+.btn-primary{background:#007bff;color:#fff}
+.btn-success{background:#25D366;color:#fff}
+.btn-danger{background:#dc3545;color:#fff}
+.btn-light{background:#f1f3f5;color:#333}
+.btn-info{background:#17a2b8;color:#fff}
+#top{display:flex;flex-wrap:wrap;gap:8px;padding:8px 20px;background:#fafafa;border-bottom:1px solid #ddd}
+#board{display:flex;gap:10px;padding:10px;overflow-x:auto}
+.col{background:#fff;border-radius:8px;padding:6px;min-width:220px;max-height:calc(100vh - 230px);overflow-y:auto;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.col h3{font-size:13px;margin:0 0 4px;color:#003366}
+.card{background:#f9f9f9;border-radius:6px;padding:6px;margin-bottom:6px;font-size:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:2000;padding:12px}
+.modal-content{background:#fff;border-radius:8px;padding:16px;width:90%;max-width:400px}
+.modal-content h3{margin:0 0 6px;color:#003366;font-size:16px}
+#etapasLista div{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+#etapasLista input{flex:1;padding:4px 6px;font-size:12px;border:1px solid #ccc;border-radius:6px}
+footer{margin-top:20px;padding:10px;text-align:center;background:#003366;color:#fff;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+<img src="logo.png" alt="Logo">
+<h1>WM CRM & Discador</h1>
+</header>
+
+<div id="top">
+<input type="file" id="csv" accept=".csv" class="btn-light">
+<button class="btn-primary" id="btnPaste">📋 Colar</button>
+<button class="btn-info" id="btnEtapas">⚙️ Etapas</button>
+</div>
+
+<div id="board"></div>
+
+<!-- Modal Etapas -->
+<div class="modal" id="mEtapas">
+ <div class="modal-content">
+   <h3>Editar Etapas</h3>
+   <div id="etapasLista"></div>
+   <button class="btn-light" id="novaEtapa" style="margin-bottom:8px">➕ Nova etapa</button>
+   <div style="display:flex;gap:6px;justify-content:flex-end">
+     <button class="btn-danger" id="cancelEt">Cancelar</button>
+     <button class="btn-success" id="saveEt">Salvar</button>
+   </div>
+ </div>
+</div>
+
+<!-- Modal Agenda -->
+<div class="modal" id="mAgenda">
+ <div class="modal-content">
+  <h3>Agendar visita</h3>
+  <select id="proj" style="width:100%;margin-bottom:6px">
+    <option value="">-- selecionar projeto --</option>
+    <option value="central">Central de Vendas – Parque Prado</option>
+    <option value="seleto">Seleto Amoreiras</option>
+    <option value="mangara">Mangará – Cores da Mata</option>
+    <option value="alentejo">Alentejo Residencial</option>
+    <option value="algarve">Algarve Residencial</option>
+    <option value="rise">Rise Condomínio Clube</option>
+  </select>
+  <input type="datetime-local" id="dataHora" style="width:100%;margin-bottom:6px">
+  <textarea id="msg" rows="8" style="width:100%;"></textarea>
+  <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+    <button class="btn-danger" id="cancelAg">Cancelar</button>
+    <button class="btn-success" id="sendAg">WhatsApp</button>
+  </div>
+ </div>
+</div>
+
+<!-- Modal Paste -->
+<div class="modal" id="mPaste">
+ <div class="modal-content">
+  <h3>Colar contatos</h3>
+  <textarea id="pasteTxt" rows="8" style="width:100%;"></textarea>
+  <div id="prev" style="background:#f1f3f5;padding:6px;font-size:11px;margin-top:6px;max-height:110px;overflow:auto"></div>
+  <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px">
+    <button class="btn-danger" id="cancelPs">Cancelar</button>
+    <button class="btn-success" id="savePs" disabled>Salvar</button>
+  </div>
+ </div>
+</div>
+
+<footer>© 2025 WM Assessoria</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<script>
+const uid=localStorage.uid||(localStorage.uid='uid_'+Math.random().toString(36).slice(2));
+const LS_STAGE='stg_'+uid, LS_LEADS='lds_'+uid;
+let stages=JSON.parse(localStorage.getItem(LS_STAGE))||[
+ {id:'novo',label:'📥 Novo'},
+ {id:'atendimento',label:'📞 Em Atendimento'},
+ {id:'fechado',label:'✅ Fechado'}
+];
+let leads=JSON.parse(localStorage.getItem(LS_LEADS))||[];
+
+const saveStages=()=>localStorage.setItem(LS_STAGE,JSON.stringify(stages));
+const saveLeads =()=>localStorage.setItem(LS_LEADS,JSON.stringify(leads));
+const slug=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-');
+
+function buildBoard(){
+ const board=document.getElementById('board'); board.innerHTML='';
+ stages.forEach(s=>{
+  const c=document.createElement('div'); c.className='col'; c.id=s.id;
+  c.innerHTML='<h3>'+s.label+'</h3>';
+  board.appendChild(c);
+  new Sortable(c,{group:'kanban',animation:150,onEnd:e=>{
+   const nome=e.item.dataset.n; const l=leads.find(x=>x.nome===nome); if(l){l.status=s.id;saveLeads();}
+  }});
+ });
+ leads.forEach(l=>{
+  const col=document.getElementById(l.status)||document.getElementById(stages[0].id);
+  const card=document.createElement('div'); card.className='card'; card.dataset.n=l.nome;
+  card.innerHTML=`
+    <strong>${l.nome}</strong>
+    <div>${l.numero}</div>
+    <button class="btn btn-primary" onclick="openAgenda('${l.nome}')">📅 Agendar</button>`;
+  col.appendChild(card);
+ });
+}
+buildBoard();
+
+/* ---- CSV & Paste ---- */
+document.getElementById('csv').onchange=e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const r=new FileReader(); r.onload=v=>{importLines(v.target.result.split(/\r?\n/).slice(1)); buildBoard();}; r.readAsText(f);
+};
+function importLines(lines){
+ lines.forEach(l=>{
+  const p=l.split(/[;,\t]/); if(p.length<2)return;
+  const nome=p[0].trim(); const numero=p[1].replace(/\D/g,'');
+  if(nome&&numero.length>=10) leads.push({nome,numero,status:stages[0].id});
+  });
+ saveLeads();
+}
+btnPaste.onclick=()=>{mPaste.style.display='flex'; pasteTxt.value=''; prev.textContent=''; savePs.disabled=true;};
+pasteTxt.oninput=()=>{
+ const list=parseContacts(pasteTxt.value); prev.textContent=list.map(c=>c.nome+' - '+c.numero).join('\n');
+ savePs.disabled=!list.length; savePs.dataset.d=JSON.stringify(list);
+};
+savePs.onclick=()=>{JSON.parse(savePs.dataset.d).forEach(c=>leads.push({...c,status:stages[0].id})); saveLeads(); buildBoard(); mPaste.style.display='none';};
+cancelPs.onclick=()=>mPaste.style.display='none';
+function parseContacts(t){
+ return t.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{
+  const num=l.replace(/\D/g,''); if(num.length<10) return null;
+  const nome=l.replace(/[0-9,;\t\s]+/g,' ').replace(/\s+/g,' ').trim()||'Contato '+num.slice(-4);
+  return {nome,numero:num};
+ }).filter(Boolean);
+}
+
+/* ---- Etapas modal ---- */
+btnEtapas.onclick=()=>{refreshEt(); mEtapas.style.display='flex';};
+function refreshEt(){etapasLista.innerHTML=''; stages.forEach((s,i)=>{const row=document.createElement('div');
+ row.innerHTML=`<input value="${s.label}" data-i="${i}">${i?'<button class="btn-danger" onclick="delEt('+i+')">🗑️</button>':''}`;
+ etapasLista.appendChild(row);});}
+function delEt(i){stages.splice(i,1); refreshEt();}
+novaEtapa.onclick=()=>{stages.push({id:slug('etapa'+Date.now()),label:'❔ Nova'}); refreshEt();};
+cancelEt.onclick=()=>mEtapas.style.display='none';
+saveEt.onclick=()=>{
+ etapasLista.querySelectorAll('input').forEach(inp=>{const i=inp.dataset.i; stages[i].label=inp.value.trim(); stages[i].id=slug(stages[i].label);});
+ saveStages(); mEtapas.style.display='none'; buildBoard();
+};
+
+/* ---- Agenda modal ---- */
+function openAgenda(nome){window.curNome=nome; proj.value=''; dataHora.value=''; msg.value=''; mAgenda.style.display='flex';}
+cancelAg.onclick=()=>mAgenda.style.display='none';
+const templates={
+central:`Olá {nome}, tudo certo?
+
+Passando só pra confirmar a sua visita à nossa Central de Vendas Direcional, localizada na Av. Maria Emília A. dos Santos de Angelis, 485 – Parque Prado, Campinas – SP, 13044-163.
+
+🕒 Horário agendado: {dataHora}
+📍 Link do local no Google Maps:
+👉 https://maps.app.goo.gl/3ayKMC2bF8hJL8TK9
+
+Ao chegar, peça para falar com o William.
+
+Aqui você poderá conhecer todos os nossos projetos disponíveis, simular condições exclusivas e tirar suas dúvidas pessoalmente.
+
+Qualquer dúvida ou imprevisto, me avisa por aqui.
+Te espero na recepção! 😉`,
+seleto:`Olá {nome}, tudo certo?
+
+Passando só pra confirmar a sua visita ao Seleto Amoreiras, localizado na R. Joaquim Lacerda Coelho, 647 – Jardim Capivari, Campinas – SP, 13050-800.
+
+🕒 Horário agendado: {dataHora}
+📍 Link do local no Google Maps:
+👉 https://maps.app.goo.gl/Rgs2wBWEGY1F3qwR8
+
+Ao chegar, peça para falar com o William.
+
+O Seleto Amoreiras oferece:
+✔ 2 dormitórios
+✔ Varanda gourmet com ponto para churrasqueira
+✔ Lazer completo com piscina, coworking, academia, pet place, salão de festas e muito mais
+
+Qualquer dúvida ou imprevisto, é só me chamar por aqui.
+Te espero no local! 😉`,
+mangara:`Olá {nome}, tudo certo?
+
+Confirmando sua visita ao Mangará – Cores da Mata, localizado na Av. Graça Aranha, 175 – Vila Miguel Vicente Cury, Campinas – SP, 13081-542.
+
+🕒 Horário agendado: {dataHora}
+📍 Google Maps:
+👉 https://maps.app.goo.gl/rYQrgLtEbRbjXvHZ9
+
+Ao chegar, peça para falar com o William.
+
+O Mangará oferece:
+✔ 2 dormitórios com suíte
+✔ Varanda gourmet
+✔ Lazer completo
+✔ Localização privilegiada em Campinas
+
+Qualquer dúvida ou imprevisto, só me chamar por aqui.
+Te espero no local! 😉`,
+alentejo:`Olá {nome}, tudo certo?
+
+Confirmando sua visita ao Alentejo Residencial, na Av. Graça Aranha, 175 – Vila Miguel Vicente Cury, Campinas – SP, 13081-542.
+
+🕒 Horário agendado: {dataHora}
+📍 Google Maps:
+👉 https://maps.app.goo.gl/rYQrgLtEbRbjXvHZ9
+
+Ao chegar, peça para falar com o William.
+
+O Alentejo oferece:
+✔ 2 e 3 dormitórios
+✔ Varanda gourmet
+✔ Garagem proporcional
+✔ Fechadura eletrônica e Wi-Fi nas áreas comuns
+
+Qualquer coisa, estou à disposição.
+Te espero no local! 😉`,
+algarve:`Olá {nome}, tudo certo?
+
+Confirmando sua visita ao Algarve Residencial, localizado na Av. Graça Aranha, 175 – Vila Miguel Vicente Cury, Campinas – SP, 13081-542.
+
+🕒 Horário agendado: {dataHora}
+📍 Google Maps:
+👉 https://maps.app.goo.gl/rYQrgLtEbRbjXvHZ9
+
+Ao chegar, peça para falar com o William.
+
+O Algarve oferece:
+✔ 2 e 3 dormitórios com opções tipo e garden
+✔ Varanda gourmet com ponto para churrasqueira a gás
+✔ Lazer completo com piscina, coworking, pet place e mais
+
+Qualquer dúvida ou imprevisto, é só me chamar por aqui.
+Te espero no local! 😉`,
+rise:`Olá {nome}, tudo certo?
+
+Passando só pra confirmar a sua visita ao Rise Condomínio Clube, localizado na Rua Bartirá, 340 – Vila Ipê, Campinas – SP.
+
+🕒 Horário agendado: {dataHora}
+📍 Link do local no Google Maps:
+👉 https://maps.app.goo.gl/HZgyx2rGDtFEFcLs7
+
+Ao chegar, peça para falar com the William.
+
+O Rise oferece:
+✔ 2 dormitórios com varanda gourmet
+✔ Condomínio clube com piscina, coworking, academia, salão de festas, brinquedoteca, pet place e muito mais
+
+Qualquer dúvida ou imprevisto, é só me chamar por aqui.
+Te espero no local! 😉`
+};
+function fill(tpl,n,d){return tpl.replaceAll('{nome}',n).replaceAll('{dataHora}',d);}
+function updateMsg(){const p=proj.value, d=dataHora.value; if(p&&d) msg.value=fill(templates[p],window.curNome,new Date(d).toLocaleString());}
+proj.onchange=updateMsg; dataHora.oninput=updateMsg;
+sendAg.onclick=()=>{if(!msg.value.trim()){alert('Mensagem vazia');return;} window.open('https://wa.me/?text='+encodeURIComponent(msg.value),'_blank'); mAgenda.style.display='none';};
+
+/* ---- CSV auto separator detection TODO, already handles common ---- */
+</script>
+</body>
+</html>
