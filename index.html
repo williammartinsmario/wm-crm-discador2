@@ -1,0 +1,180 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CRM Kanban – WM Assessoria</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Poppins', sans-serif; margin: 0; background: #121212; color: #fff; }
+    header { background: #1e1e1e; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+    h1 { margin: 0; font-size: 20px; }
+    .kanban { display: flex; gap: 16px; padding: 16px; overflow-x: auto; }
+    .kanban-column { background: #1c1c1c; border-radius: 8px; padding: 8px; min-width: 250px; flex: 1; }
+    .kanban-column h3 { margin-top: 0; text-align: center; color: #f0a500; }
+    .card { background: #2b2b2b; margin: 8px 0; padding: 10px; border-radius: 6px; color: #fff; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>CRM Kanban – WM Assessoria</h1>
+
+<input type="file" id="fileInput" style="display:none" onchange="importarArquivo(event)" />
+<button onclick="document.getElementById('fileInput').click()">📂 Importar Arquivo</button>
+<textarea id="colagemInput" placeholder="Cole aqui nome e número..."></textarea>
+<button onclick="importarColagem()">📥 Importar Colagem</button>
+
+<button onclick="adicionarContato()">➕ Adicionar Contato</button>
+
+  </header>
+  <div id="kanbanBoard" class="kanban"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js">
+function adicionarContato() {
+  const nome = prompt("Nome do contato:");
+  if (!nome) return;
+  const numero = prompt("Número do contato:");
+  if (!numero) return;
+  leads.push({ nome, numero, status: "novo" });
+  salvarLeads();
+  render();
+}
+
+
+function importarArquivo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const lines = e.target.result.split(/\r?\n/);
+    processarLinhas(lines);
+  };
+  reader.readAsText(file);
+}
+
+function importarColagem() {
+  const texto = document.getElementById("colagemInput").value;
+  const linhas = texto.split(/\r?\n/);
+  processarLinhas(linhas);
+}
+
+function processarLinhas(linhas) {
+  linhas.forEach(linha => {
+    if (!linha.trim()) return;
+    let partes = linha.split(/[;,\t]/);
+    if (partes.length < 2) {
+      partes = linha.trim().split(/\s+/); // fallback por espaço
+    }
+    const nome = partes[0];
+    const numero = partes[1];
+    if (nome && numero && /^\d{8,}$/.test(numero)) {
+      leads.push({ nome, numero, status: "novo" });
+    }
+  });
+  salvarLeads();
+  render();
+}
+
+</script>
+  <script>
+    const stages = [
+      { id: 'novo', label: '📥 Novo' },
+      { id: 'contato', label: '📞 Em contato' },
+      { id: 'agendado', label: '📅 Agendado' },
+      { id: 'fechado', label: '✅ Fechado' }
+    ];
+
+    const leads = JSON.parse(localStorage.getItem('leads') || '[]');
+
+    function salvarLeads() {
+      localStorage.setItem('leads', JSON.stringify(leads));
+    }
+
+    function render() {
+      leads.forEach(lead => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.textContent = `${lead.nome} - ${lead.numero}`;
+        card.dataset.nome = lead.nome;
+        const col = document.getElementById(lead.status || 'novo');
+        if (col) col.appendChild(card);
+      });
+    }
+
+    function renderFromStages() {
+      const board = document.getElementById('kanbanBoard');
+      board.innerHTML = '';
+      stages.forEach(s => {
+        const col = document.createElement('div');
+        col.className = 'kanban-column';
+        col.id = s.id;
+        col.innerHTML = `<h3>${s.label}</h3>`;
+        board.appendChild(col);
+        new Sortable(col, {
+          group: 'kanban',
+          animation: 150,
+          onEnd: e => {
+            const nome = e.item.dataset.nome;
+            const novoStatus = e.to.id;
+            const l = leads.find(x => x.nome === nome);
+            if (l) {
+              l.status = novoStatus;
+              salvarLeads();
+            }
+          }
+        });
+      });
+      render(); // Correção: chamar render() em vez de renderFromStages()
+    }
+
+    renderFromStages();
+  
+function adicionarContato() {
+  const nome = prompt("Nome do contato:");
+  if (!nome) return;
+  const numero = prompt("Número do contato:");
+  if (!numero) return;
+  leads.push({ nome, numero, status: "novo" });
+  salvarLeads();
+  render();
+}
+
+
+function importarArquivo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const lines = e.target.result.split(/\r?\n/);
+    processarLinhas(lines);
+  };
+  reader.readAsText(file);
+}
+
+function importarColagem() {
+  const texto = document.getElementById("colagemInput").value;
+  const linhas = texto.split(/\r?\n/);
+  processarLinhas(linhas);
+}
+
+function processarLinhas(linhas) {
+  linhas.forEach(linha => {
+    if (!linha.trim()) return;
+    let partes = linha.split(/[;,\t]/);
+    if (partes.length < 2) {
+      partes = linha.trim().split(/\s+/); // fallback por espaço
+    }
+    const nome = partes[0];
+    const numero = partes[1];
+    if (nome && numero && /^\d{8,}$/.test(numero)) {
+      leads.push({ nome, numero, status: "novo" });
+    }
+  });
+  salvarLeads();
+  render();
+}
+
+</script>
+</body>
+</html>
