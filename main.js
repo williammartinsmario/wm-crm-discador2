@@ -1,1 +1,0 @@
-// Aqui entra o JavaScript real do projeto CRM unificado com Kanban + funcionalidades
