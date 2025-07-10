@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CRM Kanban – WM Assessoria</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js">
+// Busca por nome ou número
+function filtrarLeads() {
+  const filtro = document.getElementById("searchInput").value.toLowerCase();
+  const cards = document.querySelectorAll(".kanban-card");
+  cards.forEach(card => {
+    const nome = card.querySelector("strong").textContent.toLowerCase();
+    const numero = card.querySelector(".card-numero").textContent.toLowerCase();
+    card.style.display = nome.includes(filtro) || numero.includes(filtro) ? "block" : "none";
+  });
+}
+
+// Alerta de aniversário
+function verificarAniversarios() {
+  const hoje = new Date().toISOString().slice(5, 10); // MM-DD
+  const cards = document.querySelectorAll(".kanban-card");
+  cards.forEach(card => {
+    const nasc = card.getAttribute("data-nascimento");
+    if (nasc && nasc.slice(5) === hoje) {
+      card.style.border = "2px solid gold";
+      const btn = document.createElement("button");
+      btn.innerText = "🎉 Parabenizar";
+      btn.onclick = () => {
+        const numero = card.querySelector(".card-numero").innerText.replace(/\D/g, '');
+        const nome = card.querySelector("strong").innerText;
+        const msg = encodeURIComponent(`Olá ${nome}, parabéns pelo seu aniversário! 🎉 Que seu dia seja incrível!`);
+        window.open(`https://wa.me/55${numero}?text=${msg}`, "_blank");
+      };
+      card.appendChild(btn);
+    }
+  });
+}
+
+// Rodar ao carregar
+window.onload = () => {
+  verificarFeriado();
+  verificarAniversarios();
+  if (typeof renderKanban === "function") renderKanban();
+};
+
+// Lista de feriados fixos nacionais
+const feriadosFixos = {
+  "01-01": "🎆 Feliz Ano Novo!",
+  "12-06": "💖 Feliz Dia dos Namorados!",
+  "07-09": "🇧🇷 Feliz Dia da Independência!",
+  "12-10": "👧 Feliz Dia das Crianças!",
+  "02-11": "🕊️ Dia de Finados",
+  "15-11": "🏛️ Proclamação da República",
+  "25-12": "🎄 Feliz Natal!"
+};
+
+function verificarFeriado() {
+  const hoje = new Date().toISOString().slice(5, 10); // MM-DD
+  const mensagem = feriadosFixos[hoje];
+  if (mensagem) {
+    const aviso = document.createElement("div");
+    aviso.innerText = mensagem + " – Aproveite para enviar mensagens especiais aos seus clientes.";
+    aviso.style.background = "#f9e79f";
+    aviso.style.padding = "10px";
+    aviso.style.fontWeight = "bold";
+    aviso.style.textAlign = "center";
+    aviso.style.border = "2px solid gold";
+    document.body.insertBefore(aviso, document.getElementById("kanban"));
+  }
+}
+
+
+function importarTextoInteligente(texto) {
+  const linhas = texto.trim().split(/\n|\r/);
+  const leads = [];
+
+  linhas.forEach(linha => {
+    const sep = linha.includes(";") ? ";" : (linha.includes(",") ? "," : (linha.includes("\t") ? "\t" : " "));
+    let partes = linha.split(sep).map(p => p.trim());
+    if (partes.length < 2) return;
+
+    let nome = isNaN(partes[0].replace(/\D/g, '')) ? partes[0] : partes[1];
+    let numero = isNaN(partes[0].replace(/\D/g, '')) ? partes[1] : partes[0];
+
+    numero = numero.replace(/\D/g, "");
+    if (numero.length >= 10) {
+      leads.push({ nome: nome || "Sem Nome", numero });
+    }
+  });
+
+  leads.forEach(lead => adicionarLead(lead, "novo"));
+  salvarLeads();
+  alert(leads.length + " contatos importados com sucesso.");
+}
+
+function colarContatos() {
+  const texto = prompt("Cole aqui os dados dos contatos:");
+  if (texto) importarTextoInteligente(texto);
+}
+
+function importarCSV(file) {
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    importarTextoInteligente(e.target.result);
+  };
+  reader.readAsText(file);
+}
+
+
+const mensagensPadrao = {
+  "Mangará": "Olá [nome], tudo certo?\n\nConfirmando sua visita ao Mangará – Cores da Mata.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]\nEstarei te esperando na Central de Vendas. Até lá! 😊",
+  "Rise": "Olá [nome], confirmando sua visita ao Rise Condomínio Clube.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]\nAté breve!",
+  "Seleto": "Olá [nome], tudo certo?\n\nSua visita ao Seleto Amoreiras está confirmada.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]\nNos vemos lá!",
+  "Alentejo": "Olá [nome], tudo certo?\n\nConfirmando visita ao Alentejo Residencial.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]",
+  "Algarve": "Olá [nome], tudo certo?\n\nConfirmando visita ao Algarve Residencial.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]"
+};
+
+function abrirAgendamento(nome, numero) {
+  document.getElementById("agendamentoNome").value = nome;
+  document.getElementById("agendamentoNumero").value = numero;
+  document.getElementById("modalAgendamento").style.display = "block";
+  carregarMensagem();
+}
+
+function carregarMensagem() {
+  const projeto = document.getElementById("agendamentoProjeto").value;
+  const modelo = localStorage.getItem("modelo_" + projeto) || mensagensPadrao[projeto];
+  document.getElementById("mensagemAgendamento").value = modelo;
+}
+
+function salvarMensagemModelo() {
+  const projeto = document.getElementById("agendamentoProjeto").value;
+  const mensagem = document.getElementById("mensagemAgendamento").value;
+  localStorage.setItem("modelo_" + projeto, mensagem);
+  alert("Mensagem salva para o projeto " + projeto);
+}
+
+function enviarAgendamento() {
+  const nome = document.getElementById("agendamentoNome").value;
+  const numero = document.getElementById("agendamentoNumero").value.replace(/\D/g, "");
+  const data = document.getElementById("agendamentoData").value;
+  let msg = document.getElementById("mensagemAgendamento").value;
+  msg = msg.replace("[nome]", nome).replace("[data]", data);
+  window.open(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`, "_blank");
+  fecharAgendamento();
+}
+
+function fecharAgendamento() {
+  document.getElementById("modalAgendamento").style.display = "none";
+}
+
+</script>
+<style>
+    body{font-family:'Poppins',sans-serif;background:#f4f6f9;margin:0}
+    header{background:#fff;padding:16px 32px;border-bottom:2px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+    header h1{font-size:24px;color:#003366;font-weight:600}
+    .btn{padding:6px 12px;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+    .btn-primary{background:#007bff;color:#fff}
+    .btn-warning{background:#ffc107;color:#000}
+    .btn-success{background:#25D366;color:#fff}
+    .btn-danger{background:#dc3545;color:#fff}
+    .kanban-board{display:flex;gap:16px;padding:20px;overflow-x:auto}
+    .kanban-column{background:#fff;border-radius:10px;padding:10px;min-width:260px;max-height:calc(100vh-220px);overflow-y:auto;box-shadow:0 1px 4px rgba(0,0,0,.1);flex-shrink:0}
+    .kanban-column h3{margin:0 0 12px;color:#003366;font-size:16px}
+    .card{background:#f9f9f9;border-radius:8px;padding:12px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+    .card strong{display:block;font-size:15px;margin-bottom:4px}
+    .btn-group{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+    #agendaLista{background:#fff;margin:20px;padding:16px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+    #agendaLista h2{margin:0 0 8px;color:#003366;font-size:18px}
+    .agenda-item{font-size:14px;margin-bottom:6px}
+    .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:999}
+    .modal-content{background:#fff;padding:20px;border-radius:10px;width:90%;max-width:360px}
+    .modal-content h3{margin-top:0;color:#003366}
+    .modal-content input,.modal-content textarea{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;margin-bottom:10px;font-size:14px}
+    .modal-footer{display:flex;gap:10px;justify-content:flex-end}
+    footer{padding:12px;text-align:center;font-size:12px;background:#003366;color:#fff}
+    .badge-alerta{background:#ffc107;color:#000;padding:2px 6px;border-radius:6px;font-size:10px;margin-left:4px}
+  </style>
+</head>
+<body>
+<header>
+<h1>CRM Kanban – WM Assessoria</h1>
+<input accept=".csv" class="btn btn-primary" id="fileInput" style="padding:4px 8px" type="file"/>
+<button class="btn btn-warning" id="exportBtn">💾 Exportar Dados</button>
+<label class="btn btn-primary" for="importJson" style="cursor:pointer">📂 Importar Dados</label>
+<input accept="application/json" id="importJson" style="display:none" type="file"/>
+</header>
+<div id="agendaLista">
+<h2>📅 Próximos Agendamentos</h2>
+<div id="listaAgendas"></div>
+</div>
+<div class="kanban-board" id="kanbanBoard">
+<div class="kanban-column" id="novo"><h3>📥 Novo</h3></div>
+<div class="kanban-column" id="atendimento"><h3>📞 Em Atendimento</h3></div>
+<div class="kanban-column" id="aguardando"><h3>⏳ Aguardando</h3></div>
+<div class="kanban-column" id="fechado"><h3>✅ Fechado</h3></div>
+<div class="kanban-column" id="descartado"><h3>❌ Descartado</h3></div>
+</div>
+<div class="modal" id="modalAgendar">
+<div class="modal-content">
+<h3>Agendar contato</h3>
+<input id="agendaData" type="datetime-local"/>
+<textarea id="agendaMsg" placeholder="Mensagem para o WhatsApp" rows="3"></textarea>
+<div class="modal-footer">
+<button class="btn btn-danger" id="cancelAgenda">Cancelar</button>
+<button class="btn btn-success" id="saveAgenda">Agendar</button>
+</div>
+</div>
+</div>
+<footer>© 2025 WM Assessoria – CRM Inteligente local, com Backup/Restore e WhatsApp Integrado</footer>
+<script>
+// Busca por nome ou número
+function filtrarLeads() {
+  const filtro = document.getElementById("searchInput").value.toLowerCase();
+  const cards = document.querySelectorAll(".kanban-card");
+  cards.forEach(card => {
+    const nome = card.querySelector("strong").textContent.toLowerCase();
+    const numero = card.querySelector(".card-numero").textContent.toLowerCase();
+    card.style.display = nome.includes(filtro) || numero.includes(filtro) ? "block" : "none";
+  });
+}
+
+// Alerta de aniversário
+function verificarAniversarios() {
+  const hoje = new Date().toISOString().slice(5, 10); // MM-DD
+  const cards = document.querySelectorAll(".kanban-card");
+  cards.forEach(card => {
+    const nasc = card.getAttribute("data-nascimento");
+    if (nasc && nasc.slice(5) === hoje) {
+      card.style.border = "2px solid gold";
+      const btn = document.createElement("button");
+      btn.innerText = "🎉 Parabenizar";
+      btn.onclick = () => {
+        const numero = card.querySelector(".card-numero").innerText.replace(/\D/g, '');
+        const nome = card.querySelector("strong").innerText;
+        const msg = encodeURIComponent(`Olá ${nome}, parabéns pelo seu aniversário! 🎉 Que seu dia seja incrível!`);
+        window.open(`https://wa.me/55${numero}?text=${msg}`, "_blank");
+      };
+      card.appendChild(btn);
+    }
+  });
+}
+
+// Rodar ao carregar
+window.onload = () => {
+  verificarFeriado();
+  verificarAniversarios();
+  if (typeof renderKanban === "function") renderKanban();
+};
+
+// Lista de feriados fixos nacionais
+const feriadosFixos = {
+  "01-01": "🎆 Feliz Ano Novo!",
+  "12-06": "💖 Feliz Dia dos Namorados!",
+  "07-09": "🇧🇷 Feliz Dia da Independência!",
+  "12-10": "👧 Feliz Dia das Crianças!",
+  "02-11": "🕊️ Dia de Finados",
+  "15-11": "🏛️ Proclamação da República",
+  "25-12": "🎄 Feliz Natal!"
+};
+
+function verificarFeriado() {
+  const hoje = new Date().toISOString().slice(5, 10); // MM-DD
+  const mensagem = feriadosFixos[hoje];
+  if (mensagem) {
+    const aviso = document.createElement("div");
+    aviso.innerText = mensagem + " – Aproveite para enviar mensagens especiais aos seus clientes.";
+    aviso.style.background = "#f9e79f";
+    aviso.style.padding = "10px";
+    aviso.style.fontWeight = "bold";
+    aviso.style.textAlign = "center";
+    aviso.style.border = "2px solid gold";
+    document.body.insertBefore(aviso, document.getElementById("kanban"));
+  }
+}
+
+
+function importarTextoInteligente(texto) {
+  const linhas = texto.trim().split(/\n|\r/);
+  const leads = [];
+
+  linhas.forEach(linha => {
+    const sep = linha.includes(";") ? ";" : (linha.includes(",") ? "," : (linha.includes("\t") ? "\t" : " "));
+    let partes = linha.split(sep).map(p => p.trim());
+    if (partes.length < 2) return;
+
+    let nome = isNaN(partes[0].replace(/\D/g, '')) ? partes[0] : partes[1];
+    let numero = isNaN(partes[0].replace(/\D/g, '')) ? partes[1] : partes[0];
+
+    numero = numero.replace(/\D/g, "");
+    if (numero.length >= 10) {
+      leads.push({ nome: nome || "Sem Nome", numero });
+    }
+  });
+
+  leads.forEach(lead => adicionarLead(lead, "novo"));
+  salvarLeads();
+  alert(leads.length + " contatos importados com sucesso.");
+}
+
+function colarContatos() {
+  const texto = prompt("Cole aqui os dados dos contatos:");
+  if (texto) importarTextoInteligente(texto);
+}
+
+function importarCSV(file) {
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    importarTextoInteligente(e.target.result);
+  };
+  reader.readAsText(file);
+}
+
+
+const mensagensPadrao = {
+  "Mangará": "Olá [nome], tudo certo?\n\nConfirmando sua visita ao Mangará – Cores da Mata.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]\nEstarei te esperando na Central de Vendas. Até lá! 😊",
+  "Rise": "Olá [nome], confirmando sua visita ao Rise Condomínio Clube.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]\nAté breve!",
+  "Seleto": "Olá [nome], tudo certo?\n\nSua visita ao Seleto Amoreiras está confirmada.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]\nNos vemos lá!",
+  "Alentejo": "Olá [nome], tudo certo?\n\nConfirmando visita ao Alentejo Residencial.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]",
+  "Algarve": "Olá [nome], tudo certo?\n\nConfirmando visita ao Algarve Residencial.\n📍 Av. Graça Aranha, 175 – Campinas\n📅 Dia [data]"
+};
+
+function abrirAgendamento(nome, numero) {
+  document.getElementById("agendamentoNome").value = nome;
+  document.getElementById("agendamentoNumero").value = numero;
+  document.getElementById("modalAgendamento").style.display = "block";
+  carregarMensagem();
+}
+
+function carregarMensagem() {
+  const projeto = document.getElementById("agendamentoProjeto").value;
+  const modelo = localStorage.getItem("modelo_" + projeto) || mensagensPadrao[projeto];
+  document.getElementById("mensagemAgendamento").value = modelo;
+}
+
+function salvarMensagemModelo() {
+  const projeto = document.getElementById("agendamentoProjeto").value;
+  const mensagem = document.getElementById("mensagemAgendamento").value;
+  localStorage.setItem("modelo_" + projeto, mensagem);
+  alert("Mensagem salva para o projeto " + projeto);
+}
+
+function enviarAgendamento() {
+  const nome = document.getElementById("agendamentoNome").value;
+  const numero = document.getElementById("agendamentoNumero").value.replace(/\D/g, "");
+  const data = document.getElementById("agendamentoData").value;
+  let msg = document.getElementById("mensagemAgendamento").value;
+  msg = msg.replace("[nome]", nome).replace("[data]", data);
+  window.open(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`, "_blank");
+  fecharAgendamento();
+}
+
+function fecharAgendamento() {
+  document.getElementById("modalAgendamento").style.display = "none";
+}
+
+</script></body></html>
